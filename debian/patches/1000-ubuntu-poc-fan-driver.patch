@@ -1,0 +1,74 @@
+Description: POC fan driver support
+ POC Fan driver support
+Author: Jay Vosburgh <jay.vosburgh@canonical.com>
+
+Index: iproute2-5.15.0/ip/link_iptnl.c
+===================================================================
+--- iproute2-5.15.0.orig/ip/link_iptnl.c
++++ iproute2-5.15.0/ip/link_iptnl.c
+@@ -84,6 +84,7 @@ static int iptunnel_parse_opt(struct lin
+ 	struct rtattr *iptuninfo[IFLA_IPTUN_MAX + 1];
+ 	int len;
+ 	inet_prefix saddr, daddr, ip6rdprefix, ip6rdrelayprefix;
++	inet_prefix underlay;
+ 	__u8 pmtudisc = 1;
+ 	__u8 tos = 0;
+ 	__u16 iflags = 0;
+@@ -99,6 +100,7 @@ static int iptunnel_parse_opt(struct lin
+ 
+ 	inet_prefix_reset(&saddr);
+ 	inet_prefix_reset(&daddr);
++	inet_prefix_reset(&underlay);
+ 
+ 	inet_prefix_reset(&ip6rdprefix);
+ 	inet_prefix_reset(&ip6rdrelayprefix);
+@@ -212,6 +214,9 @@ get_failed:
+ 		} else if (strcmp(*argv, "remote") == 0) {
+ 			NEXT_ARG();
+ 			get_addr(&daddr, *argv, AF_INET);
++		} else if (strcmp(*argv, "underlay") == 0) {
++			NEXT_ARG();
++			get_addr(&underlay, *argv, AF_INET);
+ 		} else if (strcmp(*argv, "local") == 0) {
+ 			NEXT_ARG();
+ 			get_addr(&saddr, *argv, AF_INET);
+@@ -353,6 +358,10 @@ get_failed:
+ 		}
+ 	}
+ 
++	if (is_addrtype_inet(&underlay))
++		addattr_l(n, 1024, IFLA_IPTUN_FAN_UNDERLAY,
++			  underlay.data, underlay.bytelen);
++
+ 	return 0;
+ }
+ 
+@@ -390,6 +399,14 @@ static void iptunnel_print_opt(struct li
+ 	tnl_print_endpoint("remote", tb[IFLA_IPTUN_REMOTE], AF_INET);
+ 	tnl_print_endpoint("local", tb[IFLA_IPTUN_LOCAL], AF_INET);
+ 
++	if (tb[IFLA_IPTUN_FAN_UNDERLAY]) {
++		inet_prefix addr;
++
++		if(!get_addr_rta(&addr, tb[IFLA_IPTUN_FAN_UNDERLAY], AF_INET))
++			print_string(PRINT_ANY, "underlay",  "underlay %s ",
++				format_host(AF_INET, addr.bytelen, addr.data));
++	}
++
+ 	if (tb[IFLA_IPTUN_LINK]) {
+ 		__u32 link = rta_getattr_u32(tb[IFLA_IPTUN_LINK]);
+ 
+Index: iproute2-5.15.0/include/uapi/linux/if_tunnel.h
+===================================================================
+--- iproute2-5.15.0.orig/include/uapi/linux/if_tunnel.h
++++ iproute2-5.15.0/include/uapi/linux/if_tunnel.h
+@@ -77,6 +77,9 @@ enum {
+ 	IFLA_IPTUN_ENCAP_DPORT,
+ 	IFLA_IPTUN_COLLECT_METADATA,
+ 	IFLA_IPTUN_FWMARK,
++
++	IFLA_IPTUN_FAN_UNDERLAY = 32,
++
+ 	__IFLA_IPTUN_MAX,
+ };
+ #define IFLA_IPTUN_MAX	(__IFLA_IPTUN_MAX - 1)
