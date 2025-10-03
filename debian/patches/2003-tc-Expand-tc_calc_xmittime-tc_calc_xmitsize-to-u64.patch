@@ -1,0 +1,81 @@
+From 13b999aa74c88e90a7f6f033893c2a0974f827ae Mon Sep 17 00:00:00 2001
+From: Jay Vosburgh <jay.vosburgh@canonical.com>
+Date: Tue, 16 Sep 2025 14:57:30 -0700
+Bug-Ubuntu: https://launchpad.net/bugs/2125448
+Origin: backport, https://git.kernel.org/pub/scm/network/iproute2/iproute2-next.git/commit/?id=13b999aa74c88e90a7f6f033893c2a0974f827ae
+Subject: [PATCH 3/4] tc: Expand tc_calc_xmittime, tc_calc_xmitsize to u64
+
+	In preparation for accepting 64-bit burst sizes, modify
+tc_calc_xmittime and tc_calc_xmitsize to handle 64-bit values.
+
+	tc_calc_xmittime continues to return a 32-bit value, as its range
+is limited by the kernel API, but overflow is now detected and the return
+value is limited to UINT_MAX.
+
+Acked-by: Jamal Hadi Salim <jhs@mojatatu.com>
+Signed-off-by: Jay Vosburgh <jay.vosburgh@canonical.com>
+Signed-off-by: David Ahern <dsahern@kernel.org>
+---
+ tc/tc_core.c | 9 ++++++---
+ tc/tc_core.h | 4 ++--
+ 2 files changed, 8 insertions(+), 5 deletions(-)
+
+Index: iproute2-5.15.0/tc/tc_core.c
+===================================================================
+--- iproute2-5.15.0.orig/tc/tc_core.c
++++ iproute2-5.15.0/tc/tc_core.c
+@@ -37,12 +37,12 @@ int tc_core_time2big(unsigned int time)
+ }
+ 
+ 
+-unsigned int tc_core_time2tick(unsigned int time)
++double tc_core_time2tick(double time)
+ {
+ 	return time*tick_in_usec;
+ }
+ 
+-unsigned int tc_core_tick2time(unsigned int tick)
++double tc_core_tick2time(double tick)
+ {
+ 	return tick/tick_in_usec;
+ }
+@@ -57,12 +57,15 @@ unsigned int tc_core_ktime2time(unsigned
+ 	return ktime / clock_factor;
+ }
+ 
+-unsigned int tc_calc_xmittime(__u64 rate, unsigned int size)
++unsigned int tc_calc_xmittime(__u64 rate, __u64 size)
+ {
+-	return tc_core_time2tick(TIME_UNITS_PER_SEC*((double)size/(double)rate));
++	double val;
++
++	val = ceil(tc_core_time2tick(TIME_UNITS_PER_SEC*((double)size/(double)rate)));
++	return val > UINT_MAX ? UINT_MAX : val;
+ }
+ 
+-unsigned int tc_calc_xmitsize(__u64 rate, unsigned int ticks)
++__u64 tc_calc_xmitsize(__u64 rate, unsigned int ticks)
+ {
+ 	return ((double)rate*tc_core_tick2time(ticks))/TIME_UNITS_PER_SEC;
+ }
+Index: iproute2-5.15.0/tc/tc_core.h
+===================================================================
+--- iproute2-5.15.0.orig/tc/tc_core.h
++++ iproute2-5.15.0/tc/tc_core.h
+@@ -13,12 +13,12 @@ enum link_layer {
+ 
+ 
+ int  tc_core_time2big(unsigned time);
+-unsigned tc_core_time2tick(unsigned time);
+-unsigned tc_core_tick2time(unsigned tick);
++double tc_core_time2tick(double time);
++double tc_core_tick2time(double tick);
+ unsigned tc_core_time2ktime(unsigned time);
+ unsigned tc_core_ktime2time(unsigned ktime);
+-unsigned tc_calc_xmittime(__u64 rate, unsigned size);
+-unsigned tc_calc_xmitsize(__u64 rate, unsigned ticks);
++unsigned tc_calc_xmittime(__u64 rate, __u64 size);
++__u64 tc_calc_xmitsize(__u64 rate, unsigned ticks);
+ int tc_calc_rtable(struct tc_ratespec *r, __u32 *rtab,
+ 		   int cell_log, unsigned mtu, enum link_layer link_layer);
+ int tc_calc_rtable_64(struct tc_ratespec *r, __u32 *rtab,

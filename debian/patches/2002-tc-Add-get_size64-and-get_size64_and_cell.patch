@@ -1,0 +1,125 @@
+From 8798ab4c4c0258bf69f787ce45aa94325e66ea6f Mon Sep 17 00:00:00 2001
+From: Jay Vosburgh <jay.vosburgh@canonical.com>
+Date: Tue, 16 Sep 2025 14:57:29 -0700
+Bug-Ubuntu: https://launchpad.net/bugs/2125448
+Origin: backport, https://git.kernel.org/pub/scm/network/iproute2/iproute2-next.git/commit/?id=8798ab4c4c0258bf69f787ce45aa94325e66ea6f
+Subject: [PATCH 2/4] tc: Add get_size64 and get_size64_and_cell
+
+	In preparation for accepting 64 bit burst sizes, create 64-bit
+versions of get_size and get_size_and_cell.  The 32-bit versions become
+wrappers around the 64-bit versions.
+
+Acked-by: Jamal Hadi Salim <jhs@mojatatu.com>
+Signed-off-by: Jay Vosburgh <jay.vosburgh@canonical.com>
+Signed-off-by: David Ahern <dsahern@kernel.org>
+---
+ include/utils.h  |  1 +
+ lib/utils_math.c | 19 ++++++++++++++++++-
+ tc/tc_util.c     | 21 +++++++++++++++++++--
+ tc/tc_util.h     |  1 +
+ 4 files changed, 39 insertions(+), 3 deletions(-)
+
+Index: iproute2-5.15.0/include/utils.h
+===================================================================
+--- iproute2-5.15.0.orig/include/utils.h
++++ iproute2-5.15.0/include/utils.h
+@@ -158,6 +158,7 @@ int get_addr64(__u64 *ap, const char *cp
+ int get_rate(unsigned int *rate, const char *str);
+ int get_rate64(__u64 *rate, const char *str);
+ int get_size(unsigned int *size, const char *str);
++int get_size64(__u64 *size, const char *str);
+ 
+ int hex2mem(const char *buf, uint8_t *mem, int count);
+ char *hexstring_n2a(const __u8 *str, int len, char *buf, int blen);
+Index: iproute2-5.15.0/lib/utils_math.c
+===================================================================
+--- iproute2-5.15.0.orig/lib/utils_math.c
++++ iproute2-5.15.0/lib/utils_math.c
+@@ -87,7 +87,7 @@ int get_rate64(__u64 *rate, const char *
+ 	return 0;
+ }
+ 
+-int get_size(unsigned int *size, const char *str)
++int get_size64(__u64 *size, const char *str)
+ {
+ 	double sz;
+ 	char *p;
+@@ -120,4 +120,21 @@ int get_size(unsigned int *size, const c
+ 		return -1;
+ 
+ 	return 0;
++}
++
++int get_size(unsigned int *size, const char *str)
++{
++	__u64 sz64;
++	int rv;
++
++	rv = get_size64(&sz64, str);
++	*size = sz64;
++
++	if (rv)
++		return rv;
++
++	if (sz64 > UINT_MAX)
++		return -1;
++
++	return 0;
+ }
+Index: iproute2-5.15.0/tc/tc_util.c
+===================================================================
+--- iproute2-5.15.0.orig/tc/tc_util.c
++++ iproute2-5.15.0/tc/tc_util.c
+@@ -258,14 +258,14 @@ char *sprint_ticks(__u32 ticks, char *bu
+ 	return sprint_time(tc_core_tick2time(ticks), buf);
+ }
+ 
+-int get_size_and_cell(unsigned int *size, int *cell_log, char *str)
++int get_size64_and_cell(__u64 *size, int *cell_log, char *str)
+ {
+ 	char *slash = strchr(str, '/');
+ 
+ 	if (slash)
+ 		*slash = 0;
+ 
+-	if (get_size(size, str))
++	if (get_size64(size, str))
+ 		return -1;
+ 
+ 	if (slash) {
+@@ -287,6 +287,23 @@ int get_size_and_cell(unsigned int *size
+ 	return 0;
+ }
+ 
++int get_size_and_cell(unsigned int *size, int *cell_log, char *str)
++{
++	__u64 size64;
++	int rv;
++
++	rv = get_size64_and_cell(&size64, cell_log, str);
++	if (rv)
++		return rv;
++
++	if (size64 > UINT32_MAX)
++		return -1;
++
++	*size = size64;
++
++	return 0;
++}
++
+ void print_devname(enum output_type type, int ifindex)
+ {
+ 	const char *ifname = ll_index_to_name(ifindex);
+Index: iproute2-5.15.0/tc/tc_util.h
+===================================================================
+--- iproute2-5.15.0.orig/tc/tc_util.h
++++ iproute2-5.15.0/tc/tc_util.h
+@@ -79,6 +79,7 @@ int get_qdisc_handle(__u32 *h, const cha
+ int get_percent_rate(unsigned int *rate, const char *str, const char *dev);
+ int get_percent_rate64(__u64 *rate, const char *str, const char *dev);
+ int get_size_and_cell(unsigned int *size, int *cell_log, char *str);
++int get_size64_and_cell(__u64 *size, int *cell_log, char *str);
+ int get_linklayer(unsigned int *val, const char *arg);
+ 
+ void tc_print_rate(enum output_type t, const char *key, const char *fmt,

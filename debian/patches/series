@@ -5,3 +5,7 @@
 1000-ubuntu-poc-fan-driver.patch
 1001-ubuntu-poc-fan-driver-v3.patch
 1002-ubuntu-poc-fan-driver-vxlan.patch
+2001-lib-Update-backend-of-print_size-to-accept-64-bit-si.patch
+2002-tc-Add-get_size64-and-get_size64_and_cell.patch
+2003-tc-Expand-tc_calc_xmittime-tc_calc_xmitsize-to-u64.patch
+2004-tc-police-enable-use-of-64-bit-burst-parameter.patch

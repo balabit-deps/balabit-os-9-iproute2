@@ -1,0 +1,77 @@
+From 1ee417ac43ee02fdc4458a647f3cf2e4f8a48d65 Mon Sep 17 00:00:00 2001
+From: Jay Vosburgh <jay.vosburgh@canonical.com>
+Date: Tue, 16 Sep 2025 14:57:28 -0700
+Bug-Ubuntu: https://launchpad.net/bugs/2125448
+Origin: backport, https://git.kernel.org/pub/scm/network/iproute2/iproute2-next.git/commit/?id=1ee417ac43ee02fdc4458a647f3cf2e4f8a48d65
+Subject: [PATCH 1/4] lib: Update backend of print_size to accept 64 bit size
+
+	In preparation for accepting 64 bit burst sizes, modify
+sprint_size, the formatting function behind print_size, to accept __u64 as
+its size parameter.  Also include a "Gb" size category.
+
+Acked-by: Jamal Hadi Salim <jhs@mojatatu.com>
+Signed-off-by: Jay Vosburgh <jay.vosburgh@canonical.com>
+Signed-off-by: David Ahern <dsahern@kernel.org>
+---
+ include/json_print.h  |  4 ++--
+ lib/json_print_math.c | 11 +++++++----
+ 2 files changed, 9 insertions(+), 6 deletions(-)
+
+Index: iproute2-5.15.0/include/json_print.h
+===================================================================
+--- iproute2-5.15.0.orig/include/json_print.h
++++ iproute2-5.15.0/include/json_print.h
+@@ -72,7 +72,7 @@ _PRINT_FUNC(on_off, bool)
+ _PRINT_FUNC(null, const char*)
+ _PRINT_FUNC(string, const char*)
+ _PRINT_FUNC(uint, unsigned int)
+-_PRINT_FUNC(size, __u32)
++_PRINT_FUNC(size, __u64)
+ _PRINT_FUNC(u64, uint64_t)
+ _PRINT_FUNC(hhu, unsigned char)
+ _PRINT_FUNC(hu, unsigned short)
+@@ -102,6 +102,6 @@ static inline int print_rate(bool use_ie
+ }
+ 
+ /* A backdoor to the size formatter. Please use print_size() instead. */
+-char *sprint_size(__u32 sz, char *buf);
++char *sprint_size(__u64 sz, char *buf);
+ 
+ #endif /* _JSON_PRINT_H_ */
+Index: iproute2-5.15.0/lib/json_print_math.c
+===================================================================
+--- iproute2-5.15.0.orig/lib/json_print_math.c
++++ iproute2-5.15.0/lib/json_print_math.c
+@@ -7,25 +7,28 @@
+ #include "utils.h"
+ #include "json_print.h"
+ 
+-char *sprint_size(__u32 sz, char *buf)
++char *sprint_size(__u64 sz, char *buf)
+ {
+ 	long kilo = 1024;
+ 	long mega = kilo * kilo;
++	long giga = mega * kilo;
+ 	size_t len = SPRINT_BSIZE - 1;
+ 	double tmp = sz;
+ 
+-	if (sz >= mega && fabs(mega * rint(tmp / mega) - sz) < 1024)
++	if (sz >= giga && fabs(giga * rint(tmp / giga) - sz) < 1024)
++		snprintf(buf, len, "%gGb", rint(tmp / giga));
++	else if (sz >= mega && fabs(mega * rint(tmp / mega) - sz) < 1024)
+ 		snprintf(buf, len, "%gMb", rint(tmp / mega));
+ 	else if (sz >= kilo && fabs(kilo * rint(tmp / kilo) - sz) < 16)
+ 		snprintf(buf, len, "%gKb", rint(tmp / kilo));
+ 	else
+-		snprintf(buf, len, "%ub", sz);
++		snprintf(buf, len, "%llub", sz);
+ 
+ 	return buf;
+ }
+ 
+ int print_color_size(enum output_type type, enum color_attr color,
+-		     const char *key, const char *fmt, __u32 sz)
++		     const char *key, const char *fmt, __u64 sz)
+ {
+ 	SPRINT_BUF(buf);
+ 

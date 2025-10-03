@@ -1,3 +1,13 @@
+iproute2 (5.15.0-1ubuntu2.1) jammy; urgency=medium
+
+  * Modify tc police to permit burst sizes up greater than 4GB (LP: #2125448)
+    - /d/p/2001-lib-Update-backend-of-print_size-to-accept-64-bit-si.patch
+    - /d/p/2002-tc-Add-get_size64-and-get_size64_and_cell.patch
+    - /d/p/2003-tc-Expand-tc_calc_xmittime-tc_calc_xmitsize-to-u64.patch
+    - /d/p/2004-tc-police-enable-use-of-64-bit-burst-parameter.patch 
+
+ -- Jorge Merlino <jorge.merlino@canonical.com>  Fri, 03 Oct 2025 10:53:16 -0300
+
 iproute2 (5.15.0-1ubuntu2) jammy; urgency=high
 
   * No change rebuild for ppc64el baseline bump.
